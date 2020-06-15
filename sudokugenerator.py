@@ -4,6 +4,11 @@ import pandas as pd
 
 import pdfkit
 
+from PyPDF2 import PdfFileMerger
+
+from time import time
+import glob
+
 basepath = "C://Users/sourav/Desktop/sudoku/"
 path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 
@@ -19,24 +24,28 @@ def generateGrid(width, height):
         while not match:
             seed = [k for k in range(1, width + 1, 1)]
             random.shuffle(seed)
-
+            tempRow = list()
             for j in range(0, height, 1):
 
                 gRow = (i // 3) * 3
                 gCol = (j // 3) * 3
 
+                subGrid = gridArray[gRow:gRow + 3, gCol:gCol + 3]
+                # print('gRow:',gRow,'gCol:',gCol,'subGrid',subGrid)
+
                 for val in seed:
-                    if val not in gridArray[i, :] and val not in gridArray[:, j] and val not in gridArray[gRow:gRow + 2,
-                                                                                                gCol:gCol + 2]:
-                        gridArray[i][j] = val
+                    if val not in tempRow \
+                            and val not in gridArray[:, j] \
+                            and val not in subGrid:
+                        tempRow.append(val)
                         # print('row', i, 'col', j, 'val', val)
                         break
 
-            if 0 in gridArray[i, :]:
+            if len(set(tempRow)) < 9 :
                 match = False
-                gridArray[i, :] = np.zeros((9,), dtype=int)
             else:
                 match = True
+                gridArray[i] = tempRow
             idx = idx + 1
             if idx > 100:
                 return
@@ -54,7 +63,7 @@ def generateGrid(width, height):
 
 def generatePagePDF(html, fileName):
     config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
-    output_file = basepath + str(fileName) + ".pdf"
+    output_file = basepath + "pages/"+ str(fileName) + ".pdf"
     options = {'page-size': 'A5', 'dpi': 400}
     pdfkit.from_string(html, output_file, configuration=config, options=options)
     return output_file
@@ -76,11 +85,24 @@ def array_to_html(arr):
     html = html.replace('TO_REPLACE_BODY', tableHTML)
     return html
 
+def printBook():
+    merger = PdfFileMerger()
+    tempPath = basepath + "pages/"
+
+    onlyFiles = glob.glob(tempPath+"*.pdf")
+
+    for fileName in onlyFiles :
+        # print(fileName)
+        merger.append(open(fileName, 'rb'),import_bookmarks=False)
+
+    with open(basepath + "books_output/Sudoku Book"+str(round(time()))+".pdf", "wb") as fout:
+        merger.write(fout)
 
 class SudokuGenerator:
     if __name__ == "__main__":
         sudokus = list()
-        while len(sudokus) < 2:
+        NUMBER_OF_PUZZLES = 5
+        while len(sudokus) < NUMBER_OF_PUZZLES:
             arrayGrid = generateGrid(9, 9)
             if arrayGrid is not None:
                 sudokus.append(arrayGrid)
@@ -88,7 +110,7 @@ class SudokuGenerator:
         puzzleCount = 0
         for suSol in sudokus:
             suProb = suSol.copy()
-            maskDigits = random.randint(45, 70)
+            maskDigits = random.randint(35, 50)
             idxArr = np.c_[np.random.randint(0, 9, maskDigits), np.random.randint(0, 9, maskDigits)]
 
             for idx in idxArr:
@@ -106,5 +128,6 @@ class SudokuGenerator:
             sol_html = array_to_html(df.values)
 
             generatePagePDF(sol_html, 'Sudoku_Solution_' + str(puzzleCount))
-
             puzzleCount = puzzleCount + 1
+
+    printBook()
